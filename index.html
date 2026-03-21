@@ -1007,15 +1007,18 @@
                         newPosition.copy(clickedStraw.position).add(endPoint);
                     }
                     
-                    // 根据新吸管的方向调整位置（让连接点重叠）
+                    // 根据新吸管的方向调整位置（让连接点中心重叠）
                     if (currentStrawDirection === 'vertical') {
-                        // 垂直吸管：中心点向上偏移一半长度，使底部在端点处
+                        // 垂直吸管：中心点向上偏移 STRAW_LENGTH/2，使底部球体中心在端点处
                         newPosition.y += STRAW_LENGTH / 2;
                     } else if (currentStrawDirection === 'diagonal') {
-                        // 斜向吸管：沿 45 度方向偏移，使下端在端点处
-                        const diagOffset = (STRAW_LENGTH / 2) * Math.sqrt(2) / 2;
-                        newPosition.y += diagOffset;
-                        newPosition.x -= diagOffset;
+                        // 斜向吸管：沿 45 度方向偏移，使下端球体中心在端点处
+                        const halfLen = STRAW_LENGTH / 2;
+                        const sin45 = Math.sqrt(2) / 2;
+                        const cos45 = Math.sqrt(2) / 2;
+                        // 斜向吸管下端球体位置：中心 + (-sin45*halfLen, -cos45*halfLen)
+                        newPosition.y += halfLen * cos45;
+                        newPosition.x -= halfLen * sin45;
                     }
                     
                     // 限制在网格范围内
