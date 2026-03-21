@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>结构与设计 - 吸管搭建实验室</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            touch-action: none;
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* 顶部信息栏 */
+        #info-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 20px;
+            padding-top: max(12px, env(safe-area-inset-top));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+        }
+        
+        #material-count {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        #straw-icon {
+            width: 40px;
+            height: 40px;
+            background: #4a90e2;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #straw-icon::before {
+            content: '▬';
+            color: white;
+            font-size: 24px;
+        }
+        
+        #count-display {
+            background: #4a90e2;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            min-width: 80px;
+            text-align: center;
+        }
+        
+        #count-display.warning {
+            background: #f5a623;
+            animation: pulse 1s infinite;
+        }
+        
+        #count-display.empty {
+            background: #e74c3c;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        /* 底部工具栏 */
+        #toolbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 15px;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+        }
+        
+        .tool-btn {
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .tool-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* 方向选择器 */
+        #direction-selector {
+            position: fixed;
+            bottom: 80px;
+            bottom: max(80px, calc(80px + env(safe-area-inset-bottom)));
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            z-index: 999;
+            display: none;
+            gap: 10px;
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+        }
+        
+        #direction-selector.show {
+            display: flex !important;
+            animation: popIn 0.3s;
+        }
+        
+        .dir-btn {
+            padding: 10px 18px;
+            font-size: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        
+        .dir-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .dir-btn.active {
+            border-color: #4a90e2;
+            background: #4a90e2;
+            color: white;
+        }
+        
+        #add-straw-btn {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            color: white;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
+        }
+        
+        #add-straw-btn.ready {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            animation: glow 1.5s infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4); }
+            50% { box-shadow: 0 4px 25px rgba(46, 204, 113, 0.6); }
+        }
+        
+        #delete-btn {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+        }
+        
+        #reset-btn {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+            color: white;
+        }
+        
+        #save-btn {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            color: white;
+        }
+        
+        /* 方案切换栏 */
+        #designs-bar {
+            position: fixed;
+            top: 80px;
+            top: max(80px, calc(80px + env(safe-area-inset-top)));
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 999;
+            max-width: 200px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+        }
+        
+        #designs-bar h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .design-slot {
+            padding: 10px 15px;
+            margin: 5px 0;
+            background: #ecf0f1;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .design-slot:hover {
+            background: #d5dbdb;
+        }
+        
+        .design-slot.active {
+            background: #4a90e2;
+            color: white;
+        }
+        
+        .design-slot.empty {
+            color: #95a5a6;
+            font-style: italic;
+        }
+        
+        /* 提示信息 */
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.98);
+            padding: 30px 50px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 200;
+            text-align: center;
+            display: none;
+        }
+        
+        #message.show {
+            display: block;
+            animation: popIn 0.3s;
+        }
+        
+        @keyframes popIn {
+            from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        #message h2 {
+            color: #4a90e2;
+            margin-bottom: 15px;
+        }
+        
+        #message p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        /* 方向指示 */
+        #direction-indicator {
+            position: fixed;
+            top: 150px;
+            top: max(150px, calc(150px + env(safe-area-inset-top)));
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 998;
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+        }
+        
+        #direction-arrow {
+            font-size: 40px;
+            color: #4a90e2;
+        }
+        
+
+        
+        /* 删除模式提示 */
+        #delete-mode-hint {
+            position: absolute;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(231, 76, 60, 0.9);
+            color: white;
+            padding: 10px 25px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 100;
+            display: none;
+        }
+        
+        #delete-mode-hint.show {
+            display: block;
+            animation: shake 0.5s;
+        }
+        
+        /* 编辑模式提示 */
+        #edit-mode-hint {
+            position: absolute;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(155, 89, 182, 0.9);
+            color: white;
+            padding: 10px 25px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 100;
+            display: none;
+        }
+        
+        #edit-mode-hint.show {
+            display: block;
+            animation: popIn 0.3s;
+        }
+        
+        /* 编辑工具栏 */
+        #edit-toolbar {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            z-index: 100;
+            display: none;
+            gap: 15px;
+        }
+        
+        #edit-toolbar.show {
+            display: flex;
+            animation: popIn 0.3s;
+        }
+        
+        .edit-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        
+        .edit-btn:active {
+            transform: scale(0.95);
+        }
+        
+        #rotate-left-btn {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            color: white;
+        }
+        
+        #rotate-right-btn {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            color: white;
+        }
+        
+        #done-edit-btn {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: white;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(-50%) rotate(0deg); }
+            25% { transform: translateX(-50%) rotate(-5deg); }
+            75% { transform: translateX(-50%) rotate(5deg); }
+        }
+        
+        /* 保存成功动画 */
+        #save-success {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(46, 204, 113, 0.95);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 300;
+            display: none;
+        }
+        
+        #save-success.show {
+            display: block;
+            animation: successPop 0.5s;
+        }
+        
+        @keyframes successPop {
+            from { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            #info-bar {
+                padding: 10px 15px;
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            #material-count {
+                font-size: 16px;
+            }
+            
+            #straw-icon {
+                width: 32px;
+                height: 32px;
+            }
+            
+            #straw-icon::before {
+                font-size: 20px;
+            }
+            
+            #count-display {
+                padding: 6px 15px;
+                font-size: 16px;
+            }
+            
+            .tool-btn {
+                padding: 10px 16px;
+                font-size: 14px;
+            }
+            
+            #designs-bar {
+                top: 120px;
+                right: 10px;
+                max-width: 160px;
+                padding: 10px;
+            }
+            
+            #designs-bar h3 {
+                font-size: 14px;
+            }
+            
+            .design-slot {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+            
+            #direction-indicator {
+                top: 130px;
+                right: 10px;
+                width: 50px;
+                height: 50px;
+            }
+            
+            #direction-selector {
+                bottom: 70px;
+                padding: 8px 12px;
+            }
+            
+            .dir-btn {
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+            
+            #direction-arrow {
+                font-size: 32px;
+            }
+            
+
+            
+            #delete-mode-hint,
+            #edit-mode-hint {
+                top: 100px;
+                font-size: 14px;
+                padding: 8px 20px;
+            }
+            
+            #edit-toolbar {
+                bottom: 90px;
+                padding: 10px 15px;
+                gap: 10px;
+            }
+            
+            .edit-btn {
+                padding: 8px 15px;
+                font-size: 14px;
+            }
+            
+            #message {
+                padding: 20px 30px;
+                max-width: 80%;
+            }
+            
+            #message h2 {
+                font-size: 32px;
+            }
+            
+            #message p {
+                font-size: 14px;
+            }
+        }
+        
+        /* 小屏幕手机适配 */
+        @media (max-width: 480px) {
+            #toolbar {
+                padding: 8px 10px;
+                gap: 6px;
+            }
+            
+            .tool-btn {
+                padding: 8px 12px;
+                font-size: 13px;
+                flex: 1 1 auto;
+                justify-content: center;
+            }
+            
+            #info-bar > div:last-child {
+                font-size: 16px !important;
+            }
+            
+            #designs-bar {
+                max-width: 140px;
+            }
+            
+            .design-slot {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <!-- 顶部信息栏 -->
+        <div id="info-bar">
+            <div id="material-count">
+                <div id="straw-icon"></div>
+                <span>剩余材料：</span>
+                <div id="count-display">20</div>
+            </div>
+            <div style="font-size: 18px; color: #666;">🏗️ 结构与设计</div>
+        </div>
+        
+        <!-- 方案切换栏 -->
+        <div id="designs-bar">
+            <h3>💾 我的设计方案</h3>
+            <div class="design-slot empty" data-index="0">方案 1（空）</div>
+            <div class="design-slot empty" data-index="1">方案 2（空）</div>
+            <div class="design-slot empty" data-index="2">方案 3（空）</div>
+            <div class="design-slot empty" data-index="3">方案 4（空）</div>
+            <div class="design-slot empty" data-index="4">方案 5（空）</div>
+        </div>
+        
+        <!-- 方向指示 -->
+        <div id="direction-indicator">
+            <div id="direction-arrow">⬆️</div>
+        </div>
+        
+
+        
+        <!-- 删除模式提示 -->
+        <div id="delete-mode-hint">🗑️ 点击吸管删除</div>
+        
+        <!-- 编辑模式提示 -->
+        <div id="edit-mode-hint">✏️ 已选中吸管，可拖拽/旋转</div>
+        
+        <!-- 编辑工具栏 -->
+        <div id="edit-toolbar">
+            <button class="edit-btn" id="rotate-left-btn">↩️ 左转 15°</button>
+            <button class="edit-btn" id="rotate-right-btn">↪️ 右转 15°</button>
+            <button class="edit-btn" id="move-up-btn">⬆️ 升高</button>
+            <button class="edit-btn" id="move-down-btn">⬇️ 降低</button>
+            <button class="edit-btn" id="done-edit-btn">✅ 完成编辑</button>
+        </div>
+        
+        <!-- 吸管方向选择 -->
+        <div id="direction-selector" style="display: none;">
+            <button class="dir-btn active" data-dir="horizontal">➖ 水平</button>
+            <button class="dir-btn" data-dir="vertical">⬆️ 垂直</button>
+            <button class="dir-btn" data-dir="diagonal">↗️ 斜向</button>
+        </div>
+        
+        <!-- 底部工具栏 -->
+        <div id="toolbar">
+            <button class="tool-btn" id="add-straw-btn">➕ 添加吸管</button>
+            <button class="tool-btn" id="delete-btn">🗑️ 删除模式</button>
+            <button class="tool-btn" id="reset-btn">🔄 重新开始</button>
+            <button class="tool-btn" id="save-btn">💾 保存设计</button>
+        </div>
+        
+        <!-- 消息提示 -->
+        <div id="message">
+            <h2 id="message-title">提示</h2>
+            <p id="message-content">内容</p>
+        </div>
+        
+        <!-- 保存成功 -->
+        <div id="save-success">✅ 保存成功！</div>
+    </div>
+
+    <script>
+        // ========== 全局变量 ==========
+        let scene, camera, renderer, controls;
+        let groundPlane; // 地面平面对象
+        let straws = []; // 存储所有吸管
+        let remainingStraws = 20;
+        let isAddMode = false;
+        let isDeleteMode = false;
+        let isEditMode = false;
+        let selectedStraw = null; // 当前选中的吸管
+        let currentDesignIndex = -1;
+        let designs = [null, null, null, null, null]; // 最多 5 个方案
+        
+        const STRAW_LENGTH = 2;
+        const STRAW_RADIUS = 0.15;
+        const STRAW_COLOR = 0x4a90e2; // 蓝色 - 未选中
+        const STRAW_SELECTED_COLOR = 0xe74c3c; // 红色 - 选中
+        const GRID_SIZE = 20;
+        const GRID_DIVISIONS = 20;
+        
+        // 拖拽相关
+        let isDragging = false;
+        let dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        let dragOffset = new THREE.Vector3();
+        let dragTouchId = null; // 拖拽吸管的触摸 ID
+        
+        // 吸管方向
+        let currentStrawDirection = 'horizontal'; // horizontal, vertical, diagonal
+        
+        // ========== 初始化 Three.js 场景 ==========
+        function initScene() {
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(
+                60,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(15, 12, 15);
+            camera.lookAt(0, 0, 0);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // 添加轨道控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.1;
+            controls.minDistance = 5;
+            controls.maxDistance = 30;
+            
+            // 添加光源
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            // 添加网格地面
+            const gridHelper = new THREE.GridHelper(GRID_SIZE, GRID_DIVISIONS, 0x666666, 0x999999);
+            scene.add(gridHelper);
+            
+            // 添加地面平面（用于射线检测，y=0）
+            const planeGeometry = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE);
+            const planeMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x90ee90,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.5
+            });
+            groundPlane = new THREE.Mesh(planeGeometry, planeMaterial); // 赋值给全局变量
+            groundPlane.rotation.x = -Math.PI / 2;
+            groundPlane.position.y = 0;
+            groundPlane.userData.isGround = true; // 标记为地面
+            scene.add(groundPlane);
+            
+
+            
+            // 添加向上箭头指示
+            addDirectionArrow();
+            
+            // 事件监听 - 同时支持点击和触摸
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('click', onCanvasClick);
+            renderer.domElement.addEventListener('touchend', onCanvasClick, { passive: false });
+            renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+            
+            // 开始渲染循环
+            animate();
+            
+            // 添加拖拽事件监听
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            window.addEventListener('touchmove', onTouchMove, { passive: false });
+            window.addEventListener('touchend', onMouseUp);
+        }
+        
+        // 添加方向箭头
+        function addDirectionArrow() {
+            const arrowGroup = new THREE.Group();
+            
+            // 箭头杆
+            const shaftGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2, 8);
+            const shaftMaterial = new THREE.MeshLambertMaterial({ color: 0xe74c3c });
+            const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+            shaft.position.y = 1;
+            arrowGroup.add(shaft);
+            
+            // 箭头尖
+            const coneGeometry = new THREE.ConeGeometry(0.3, 0.8, 8);
+            const coneMaterial = new THREE.MeshLambertMaterial({ color: 0xe74c3c });
+            const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+            cone.position.y = 2.4;
+            arrowGroup.add(cone);
+            
+            arrowGroup.position.set(GRID_SIZE/2 - 2, 0, GRID_SIZE/2 - 2);
+            scene.add(arrowGroup);
+            
+            // 添加文字标签
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('上', 128, 80);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.set(GRID_SIZE/2 - 2, 3, GRID_SIZE/2 - 2);
+            sprite.scale.set(2, 1, 1);
+            scene.add(sprite);
+        }
+        
+        // ========== 吸管操作 ==========
+        function createStraw(position, direction = 'horizontal', rotationY = 0) {
+            const group = new THREE.Group();
+            
+            // 吸管主体 - 默认垂直方向（圆柱默认是 Y 轴方向）
+            const geometry = new THREE.CylinderGeometry(STRAW_RADIUS, STRAW_RADIUS, STRAW_LENGTH, 8);
+            const material = new THREE.MeshLambertMaterial({ 
+                color: STRAW_COLOR,
+                transparent: true,
+                opacity: 0.9
+            });
+            const cylinder = new THREE.Mesh(geometry, material);
+            
+            // 连接点（两端的小球）- 半径与吸管相同，确保完美对接
+            const jointGeometry = new THREE.SphereGeometry(STRAW_RADIUS, 8, 8);
+            const jointMaterial = new THREE.MeshLambertMaterial({ color: 0x3498db });
+            
+            const joint1 = new THREE.Mesh(jointGeometry, jointMaterial);
+            const joint2 = new THREE.Mesh(jointGeometry, jointMaterial);
+            
+            // 根据方向设置吸管和连接点
+            if (direction === 'horizontal') {
+                // 水平：绕 Z 轴旋转 90 度
+                cylinder.rotation.z = Math.PI / 2;
+                joint1.position.x = -STRAW_LENGTH / 2;
+                joint2.position.x = STRAW_LENGTH / 2;
+            } else if (direction === 'vertical') {
+                // 垂直：保持默认（圆柱默认就是垂直的）
+                cylinder.rotation.x = 0;
+                joint1.position.y = -STRAW_LENGTH / 2;
+                joint2.position.y = STRAW_LENGTH / 2;
+            } else if (direction === 'diagonal') {
+                // 斜向 45 度：绕 Z 轴旋转 45 度
+                cylinder.rotation.z = Math.PI / 4;
+                // 连接点沿 45 度方向分布
+                // 圆柱默认沿 Y 轴，绕 Z 轴旋转 45 度后，方向变为 (-sin45, cos45)
+                const halfLength = STRAW_LENGTH / 2;
+                const sin45 = Math.sqrt(2) / 2;
+                const cos45 = Math.sqrt(2) / 2;
+                // 连接点 1：右下方（原 Y 轴负方向旋转后）
+                joint1.position.x = halfLength * sin45;
+                joint1.position.y = -halfLength * cos45;
+                // 连接点 2：左上方（原 Y 轴正方向旋转后）
+                joint2.position.x = -halfLength * sin45;
+                joint2.position.y = halfLength * cos45;
+            }
+            
+            cylinder.castShadow = true;
+            cylinder.userData.isStrawBody = true;
+            group.add(cylinder);
+            group.add(joint1);
+            group.add(joint2);
+            
+            group.position.copy(position);
+            group.rotation.y = rotationY;
+            
+            // 保存方向信息
+            group.userData.isStraw = true;
+            group.userData.isSelected = false;
+            group.userData.direction = direction;
+            
+            return group;
+        }
+        
+        // 选中吸管
+        function selectStraw(straw) {
+            if (selectedStraw === straw) return;
+            
+            // 取消之前的选中
+            if (selectedStraw) {
+                deselectStraw();
+            }
+            
+            selectedStraw = straw;
+            straw.userData.isSelected = true;
+            
+            // 变红色
+            const body = straw.children.find(c => c.userData.isStrawBody);
+            if (body) {
+                body.material.color.setHex(STRAW_SELECTED_COLOR);
+            }
+            
+            // 显示编辑工具栏
+            document.getElementById('edit-mode-hint').classList.add('show');
+            document.getElementById('edit-toolbar').classList.add('show');
+            isEditMode = true;
+            
+            // 启用轨道控制器，允许同时旋转场景
+            controls.enabled = true;
+        }
+        
+        // 取消选中
+        function deselectStraw() {
+            if (!selectedStraw) return;
+            
+            selectedStraw.userData.isSelected = false;
+            
+            // 恢复蓝色
+            const body = selectedStraw.children.find(c => c.userData.isStrawBody);
+            if (body) {
+                body.material.color.setHex(STRAW_COLOR);
+            }
+            
+            selectedStraw = null;
+            
+            // 隐藏编辑工具栏
+            document.getElementById('edit-mode-hint').classList.remove('show');
+            document.getElementById('edit-toolbar').classList.remove('show');
+            isEditMode = false;
+            isDragging = false;
+            dragTouchId = null;
+            
+            // 恢复轨道控制器
+            controls.enabled = true;
+        }
+        
+        function onCanvasClick(event) {
+            // 编辑模式下不处理点击（拖拽时禁用）
+            if (isEditMode && isDragging) return;
+            
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // 获取点击位置 - 修复 iPad 触摸坐标
+            const rect = renderer.domElement.getBoundingClientRect();
+            let clientX, clientY;
+            
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else if (event.changedTouches && event.changedTouches.length > 0) {
+                clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
+            } else {
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
+            
+            const mouse = new THREE.Vector2();
+            mouse.x = (clientX - rect.left) / rect.width * 2 - 1;
+            mouse.y = -(clientY - rect.top) / rect.height * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            if (isDeleteMode) {
+                // 删除模式：检测是否点击到吸管
+                const strawBodies = straws.map(s => s.children.find(c => c.userData.isStrawBody)).filter(Boolean);
+                const intersects = raycaster.intersectObjects(strawBodies);
+                
+                if (intersects.length > 0) {
+                    const clickedBody = intersects[0].object;
+                    const clickedStraw = straws.find(s => s.children.includes(clickedBody));
+                    if (clickedStraw) {
+                        removeStraw(clickedStraw);
+                        showMessage('🗑️', '已删除吸管');
+                    }
+                }
+            } else if (isAddMode) {
+                // 添加模式：优先检测吸管连接点，其次检测地面
+                const strawBodies = straws.map(s => s.children.find(c => c.userData.isStrawBody)).filter(Boolean);
+                const strawIntersects = raycaster.intersectObjects(strawBodies);
+                
+                if (strawIntersects.length > 0 && remainingStraws > 0) {
+                    // 在点击的吸管位置连接新吸管
+                    const clickPoint = strawIntersects[0].point.clone();
+                    const clickedStraw = straws.find(s => s.children.includes(strawIntersects[0].object));
+                    
+                    // 基于当前选择的方向放置
+                    const newPosition = clickPoint.clone();
+                    
+                    // 根据被点击吸管的方向，找到最近的端点
+                    if (clickedStraw) {
+                        const clickedDirection = clickedStraw.userData.direction || 'horizontal';
+                        const halfLen = STRAW_LENGTH / 2;
+                        
+                        // 计算点击点相对于吸管中心的位置
+                        const localClick = clickPoint.clone().sub(clickedStraw.position);
+                        
+                        // 找到最近的端点
+                        let endPoint = new THREE.Vector3();
+                        if (clickedDirection === 'horizontal') {
+                            // 水平吸管：端点在 X 轴
+                            if (localClick.x > 0) {
+                                endPoint.set(halfLen, 0, 0);
+                            } else {
+                                endPoint.set(-halfLen, 0, 0);
+                            }
+                        } else if (clickedDirection === 'vertical') {
+                            // 垂直吸管：端点在 Y 轴
+                            if (localClick.y > 0) {
+                                endPoint.set(0, halfLen, 0);
+                            } else {
+                                endPoint.set(0, -halfLen, 0);
+                            }
+                        } else if (clickedDirection === 'diagonal') {
+                            // 斜向吸管：端点在对角线
+                            const diagOffset = halfLen * Math.sqrt(2) / 2;
+                            if (localClick.y > 0) {
+                                endPoint.set(-diagOffset, diagOffset, 0);
+                            } else {
+                                endPoint.set(diagOffset, -diagOffset, 0);
+                            }
+                        }
+                        
+                        // 新吸管放置在端点位置
+                        newPosition.copy(clickedStraw.position).add(endPoint);
+                    }
+                    
+                    // 根据新吸管的方向调整位置
+                    if (currentStrawDirection === 'vertical') {
+                        newPosition.y += STRAW_LENGTH / 2;
+                    } else if (currentStrawDirection === 'diagonal') {
+                        newPosition.y += STRAW_LENGTH / 2;
+                        newPosition.x += STRAW_LENGTH / 3;
+                    }
+                    
+                    // 限制在网格范围内
+                    newPosition.x = Math.max(-GRID_SIZE/2 + 1, Math.min(GRID_SIZE/2 - 1, newPosition.x));
+                    newPosition.z = Math.max(-GRID_SIZE/2 + 1, Math.min(GRID_SIZE/2 - 1, newPosition.z));
+                    newPosition.y = Math.max(STRAW_RADIUS, Math.min(GRID_SIZE, newPosition.y));
+                    
+                    const straw = createStraw(newPosition, currentStrawDirection);
+                    scene.add(straw);
+                    straws.push(straw);
+                    remainingStraws--;
+                    updateCountDisplay();
+                    
+                    // 播放放置动画
+                    straw.scale.set(0, 0, 0);
+                    let scale = 0;
+                    const animatePlace = () => {
+                        scale += 0.1;
+                        straw.scale.set(scale, scale, scale);
+                        if (scale < 1) {
+                            requestAnimationFrame(animatePlace);
+                        }
+                    };
+                    animatePlace();
+                    
+                    showMessage('✅', `已放置${getDirectionName(currentStrawDirection)}吸管`);
+                    
+                    // 添加后自动退出添加模式
+                    isAddMode = false;
+                    document.getElementById('add-straw-btn').classList.remove('ready');
+                    document.getElementById('add-straw-btn').textContent = '➕ 添加吸管';
+                    document.getElementById('direction-selector').classList.remove('show');
+                } else {
+                    // 检测地面
+                    const groundIntersects = raycaster.intersectObject(groundPlane);
+                    
+                    if (groundIntersects && groundIntersects.length > 0 && remainingStraws > 0) {
+                        const intersection = groundIntersects[0].point.clone();
+                        
+                        // 限制在网格范围内
+                        intersection.x = Math.max(-GRID_SIZE/2 + 1, Math.min(GRID_SIZE/2 - 1, intersection.x));
+                        intersection.z = Math.max(-GRID_SIZE/2 + 1, Math.min(GRID_SIZE/2 - 1, intersection.z));
+                        
+                        // 根据方向设置高度
+                        if (currentStrawDirection === 'vertical') {
+                            intersection.y = STRAW_LENGTH / 2;
+                        } else if (currentStrawDirection === 'diagonal') {
+                            intersection.y = STRAW_LENGTH / 3;
+                        } else {
+                            intersection.y = STRAW_RADIUS;
+                        }
+                        
+                        const straw = createStraw(intersection, currentStrawDirection);
+                        scene.add(straw);
+                        straws.push(straw);
+                        remainingStraws--;
+                        updateCountDisplay();
+                        
+                        // 播放放置动画
+                        straw.scale.set(0, 0, 0);
+                        let scale = 0;
+                        const animatePlace = () => {
+                            scale += 0.1;
+                            straw.scale.set(scale, scale, scale);
+                            if (scale < 1) {
+                                requestAnimationFrame(animatePlace);
+                            }
+                        };
+                        animatePlace();
+                        
+                        showMessage('✅', `已放置${getDirectionName(currentStrawDirection)}吸管`);
+                        
+                        // 添加后自动退出添加模式
+                        isAddMode = false;
+                        document.getElementById('add-straw-btn').classList.remove('ready');
+                        document.getElementById('add-straw-btn').textContent = '➕ 添加吸管';
+                        document.getElementById('direction-selector').classList.remove('show');
+                    } else if (remainingStraws <= 0) {
+                        showMessage('⚠️', '材料已用完！\n需要删除一些吸管才能继续添加');
+                    }
+                }
+            } else {
+                // 普通模式：点击吸管进行选中
+                const strawBodies = straws.map(s => s.children.find(c => c.userData.isStrawBody)).filter(Boolean);
+                const intersects = raycaster.intersectObjects(strawBodies);
+                
+                if (intersects.length > 0) {
+                    const clickedBody = intersects[0].object;
+                    const clickedStraw = straws.find(s => s.children.includes(clickedBody));
+                    if (clickedStraw) {
+                        selectStraw(clickedStraw);
+                        showMessage('✏️', '已选中吸管\n可以拖拽或旋转');
+                    } else {
+                        deselectStraw();
+                    }
+                } else {
+                    deselectStraw();
+                }
+            }
+        }
+        
+        function onTouchStart(event) {
+            if (isEditMode && selectedStraw) {
+                // 检测触摸数量
+                const touchCount = event.touches.length;
+                
+                // 找到第一个接触屏幕的手指作为拖拽手
+                for (let i = 0; i < touchCount; i++) {
+                    const touch = event.touches[i];
+                    
+                    if (dragTouchId === null) {
+                        isDragging = true;
+                        dragTouchId = touch.identifier;
+                        
+                        const rect = renderer.domElement.getBoundingClientRect();
+                        const mouse = new THREE.Vector2();
+                        mouse.x = (touch.clientX - rect.left) / rect.width * 2 - 1;
+                        mouse.y = -(touch.clientY - rect.top) / rect.height * 2 + 1;
+                        
+                        const raycaster = new THREE.Raycaster();
+                        raycaster.setFromCamera(mouse, camera);
+                        
+                        // 创建与相机视线垂直的拖拽平面（在吸管深度处）
+                        const cameraDirection = new THREE.Vector3();
+                        camera.getWorldDirection(cameraDirection);
+                        const dragPlaneLocal = new THREE.Plane();
+                        dragPlaneLocal.setFromNormalAndCoplanarPoint(
+                            cameraDirection,
+                            selectedStraw.position
+                        );
+                        
+                        const intersection = new THREE.Vector3();
+                        if (raycaster.ray.intersectPlane(dragPlaneLocal, intersection)) {
+                            dragOffset.copy(intersection);
+                        } else {
+                            dragOffset.copy(selectedStraw.position);
+                        }
+                        
+                        // 单手：禁用旋转，方便拖动
+                        // 双手：启用旋转，可以观察空间
+                        controls.enabled = (touchCount > 1);
+                        
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // 触摸移动处理 - 支持双指独立操作
+        function onTouchMove(event) {
+            if (isEditMode && selectedStraw && isDragging && dragTouchId !== null) {
+                const touchCount = event.touches.length;
+                
+                // 动态调整：双手时启用旋转，单手时禁用
+                controls.enabled = (touchCount > 1);
+                
+                // 找到拖拽手的触摸点
+                for (let i = 0; i < touchCount; i++) {
+                    const touch = event.touches[i];
+                    if (touch.identifier === dragTouchId) {
+                        // 这是拖拽手，移动吸管
+                        const rect = renderer.domElement.getBoundingClientRect();
+                        const mouse = new THREE.Vector2();
+                        mouse.x = (touch.clientX - rect.left) / rect.width * 2 - 1;
+                        mouse.y = -(touch.clientY - rect.top) / rect.height * 2 + 1;
+                        
+                        const raycaster = new THREE.Raycaster();
+                        raycaster.setFromCamera(mouse, camera);
+                        
+                        // 创建与相机视线垂直的拖拽平面（在吸管深度处）
+                        const cameraDirection = new THREE.Vector3();
+                        camera.getWorldDirection(cameraDirection);
+                        const dragPlaneLocal = new THREE.Plane();
+                        dragPlaneLocal.setFromNormalAndCoplanarPoint(
+                            cameraDirection,
+                            selectedStraw.position
+                        );
+                        
+                        const intersection = new THREE.Vector3();
+                        if (raycaster.ray.intersectPlane(dragPlaneLocal, intersection)) {
+                            // 计算移动偏移量
+                            const offset = intersection.clone().sub(dragOffset);
+                            
+                            // 将偏移量转换为水平移动（保持 Y 轴不变）
+                            selectedStraw.position.x += offset.x;
+                            selectedStraw.position.z += offset.z;
+                            
+                            // 更新 dragOffset 为当前位置，实现连续拖动
+                            dragOffset.copy(intersection);
+                        }
+                        
+                        // 限制在网格范围内
+                        selectedStraw.position.x = Math.max(-GRID_SIZE/2, Math.min(GRID_SIZE/2, selectedStraw.position.x));
+                        selectedStraw.position.z = Math.max(-GRID_SIZE/2, Math.min(GRID_SIZE/2, selectedStraw.position.z));
+                        
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // 鼠标移动处理（桌面端）
+        function onMouseMove(event) {
+            if (!isEditMode || !selectedStraw || !isDragging) return;
+            
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const rect = renderer.domElement.getBoundingClientRect();
+            const clientX = event.clientX;
+            const clientY = event.clientY;
+            
+            const mouse = new THREE.Vector2();
+            mouse.x = (clientX - rect.left) / rect.width * 2 - 1;
+            mouse.y = -(clientY - rect.top) / rect.height * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            // 创建与相机视线垂直的拖拽平面（在吸管深度处）
+            const cameraDirection = new THREE.Vector3();
+            camera.getWorldDirection(cameraDirection);
+            const dragPlaneLocal = new THREE.Plane();
+            dragPlaneLocal.setFromNormalAndCoplanarPoint(
+                cameraDirection,
+                selectedStraw.position
+            );
+            
+            const intersection = new THREE.Vector3();
+            if (raycaster.ray.intersectPlane(dragPlaneLocal, intersection)) {
+                const offset = intersection.clone().sub(dragOffset);
+                
+                selectedStraw.position.x += offset.x;
+                selectedStraw.position.z += offset.z;
+                
+                dragOffset.copy(intersection);
+            }
+            
+            // 限制在网格范围内
+            selectedStraw.position.x = Math.max(-GRID_SIZE/2, Math.min(GRID_SIZE/2, selectedStraw.position.x));
+            selectedStraw.position.z = Math.max(-GRID_SIZE/2, Math.min(GRID_SIZE/2, selectedStraw.position.z));
+        }
+        
+        function onMouseUp() {
+            if (isDragging) {
+                isDragging = false;
+                dragTouchId = null;
+                // 保持控制器启用，让学生可以继续旋转观察
+                controls.enabled = true;
+            }
+        }
+        
+        function removeStraw(straw) {
+            scene.remove(straw);
+            straws = straws.filter(s => s !== straw);
+            remainingStraws++;
+            updateCountDisplay();
+        }
+        
+        function updateCountDisplay() {
+            const display = document.getElementById('count-display');
+            display.textContent = remainingStraws;
+            
+            display.className = '';
+            if (remainingStraws <= 5) {
+                display.classList.add('warning');
+            }
+            if (remainingStraws === 0) {
+                display.classList.add('empty');
+            }
+        }
+        
+        function getDirectionName(dir) {
+            if (dir === 'horizontal') return '水平';
+            if (dir === 'vertical') return '垂直';
+            if (dir === 'diagonal') return '斜向';
+            return '';
+        }
+        
+        // ========== 工具栏按钮 ==========
+        function setupToolbar() {
+            const addBtn = document.getElementById('add-straw-btn');
+            const deleteBtn = document.getElementById('delete-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const saveBtn = document.getElementById('save-btn');
+            
+            addBtn.addEventListener('click', () => {
+                if (remainingStraws <= 0) {
+                    showMessage('⚠️', '材料已用完！\n需要删除一些吸管才能继续添加');
+                    return;
+                }
+                // 取消其他模式
+                isDeleteMode = false;
+                deleteBtn.classList.remove('active');
+                document.getElementById('delete-mode-hint').classList.remove('show');
+                deselectStraw();
+                
+                // 切换添加模式
+                isAddMode = !isAddMode;
+                addBtn.classList.toggle('ready', isAddMode);
+                
+                if (isAddMode) {
+                    addBtn.textContent = '✅ 点击放置';
+                    document.getElementById('direction-selector').classList.add('show');
+                    showMessage('➕', `当前：${getDirectionName(currentStrawDirection)}\n点击地面或吸管放置`);
+                } else {
+                    addBtn.textContent = '➕ 添加吸管';
+                    document.getElementById('direction-selector').classList.remove('show');
+                }
+            });
+            
+            deleteBtn.addEventListener('click', () => {
+                isDeleteMode = !isDeleteMode;
+                isAddMode = false;
+                deleteBtn.classList.toggle('active', isDeleteMode);
+                addBtn.classList.remove('ready');
+                addBtn.textContent = '➕ 添加吸管';
+                document.getElementById('delete-mode-hint').classList.toggle('show', isDeleteMode);
+                deselectStraw();
+                
+                if (isDeleteMode) {
+                    showMessage('🗑️', '点击吸管删除');
+                }
+            });
+            
+            resetBtn.addEventListener('click', () => {
+                if (straws.length === 0) return;
+                
+                deselectStraw();
+                
+                if (confirm('确定要清空所有吸管重新开始吗？')) {
+                    straws.forEach(straw => scene.remove(straw));
+                    straws = [];
+                    remainingStraws = 20;
+                    updateCountDisplay();
+                    showMessage('🔄', '已重新开始');
+                }
+            });
+            
+            // 方向选择器
+            const directionSelector = document.getElementById('direction-selector');
+            const dirBtns = directionSelector.querySelectorAll('.dir-btn');
+            
+            dirBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    dirBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentStrawDirection = btn.dataset.dir;
+                    showMessage('🎯', `已切换：${getDirectionName(currentStrawDirection)}`);
+                });
+            });
+            
+            // 编辑工具栏按钮
+            const rotateLeftBtn = document.getElementById('rotate-left-btn');
+            const rotateRightBtn = document.getElementById('rotate-right-btn');
+            const moveUpBtn = document.getElementById('move-up-btn');
+            const moveDownBtn = document.getElementById('move-down-btn');
+            const doneEditBtn = document.getElementById('done-edit-btn');
+            
+            rotateLeftBtn.addEventListener('click', () => {
+                if (selectedStraw) {
+                    selectedStraw.rotation.y += Math.PI / 12;
+                    showMessage('↩️', '向左旋转 15°');
+                }
+            });
+            
+            rotateRightBtn.addEventListener('click', () => {
+                if (selectedStraw) {
+                    selectedStraw.rotation.y -= Math.PI / 12;
+                    showMessage('↪️', '向右旋转 15°');
+                }
+            });
+            
+            moveUpBtn.addEventListener('click', () => {
+                if (selectedStraw) {
+                    selectedStraw.position.y += 0.5;
+                    selectedStraw.position.y = Math.min(GRID_SIZE, selectedStraw.position.y);
+                    showMessage('⬆️', '升高 0.5 单位');
+                }
+            });
+            
+            moveDownBtn.addEventListener('click', () => {
+                if (selectedStraw) {
+                    selectedStraw.position.y -= 0.5;
+                    selectedStraw.position.y = Math.max(STRAW_RADIUS, selectedStraw.position.y);
+                    showMessage('⬇️', '降低 0.5 单位');
+                }
+            });
+            
+            doneEditBtn.addEventListener('click', () => {
+                deselectStraw();
+                showMessage('✅', '编辑完成');
+            });
+            
+            saveBtn.addEventListener('click', () => {
+                // 保存前先取消选中
+                deselectStraw();
+                
+                if (straws.length === 0) {
+                    showMessage('⚠️', '还没有设计内容\n请先添加吸管');
+                    return;
+                }
+                
+                // 保存到当前选中的方案或第一个空方案
+                let saveIndex = currentDesignIndex;
+                if (saveIndex === -1) {
+                    saveIndex = designs.findIndex(d => d === null);
+                }
+                if (saveIndex === -1) {
+                    saveIndex = 0; // 覆盖第一个
+                }
+                
+                // 保存设计数据
+                const designData = straws.map(straw => ({
+                    position: { x: straw.position.x, y: straw.position.y, z: straw.position.z },
+                    rotation: { x: straw.rotation.x, y: straw.rotation.y, z: straw.rotation.z }
+                }));
+                
+                designs[saveIndex] = designData;
+                currentDesignIndex = saveIndex;
+                
+                // 更新 UI
+                updateDesignsUI();
+                
+                // 显示保存成功
+                const successMsg = document.getElementById('save-success');
+                successMsg.classList.add('show');
+                setTimeout(() => successMsg.classList.remove('show'), 2000);
+                
+                showMessage('💾', `设计已保存到方案 ${saveIndex + 1}`);
+            });
+        }
+        
+        function updateDesignsUI() {
+            const slots = document.querySelectorAll('.design-slot');
+            slots.forEach((slot, index) => {
+                if (designs[index]) {
+                    slot.classList.remove('empty');
+                    slot.textContent = `方案 ${index + 1}（${designs[index].length}根）`;
+                    slot.classList.toggle('active', index === currentDesignIndex);
+                } else {
+                    slot.classList.add('empty');
+                    slot.textContent = `方案 ${index + 1}（空）`;
+                    slot.classList.remove('active');
+                }
+                
+                slot.onclick = () => loadDesign(index);
+            });
+        }
+        
+        function loadDesign(index) {
+            if (!designs[index]) {
+                showMessage('ℹ️', '该方案为空\n点击"保存设计"来保存当前设计');
+                return;
+            }
+            
+            deselectStraw();
+            
+            if (straws.length > 0 && !confirm('切换方案将清空当前设计，确定继续吗？')) {
+                return;
+            }
+            
+            // 清空当前设计
+            straws.forEach(straw => scene.remove(straw));
+            straws = [];
+            
+            // 加载新设计
+            designs[index].forEach(data => {
+                const straw = createStraw(
+                    new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                    new THREE.Euler(data.rotation.x, data.rotation.y, data.rotation.z)
+                );
+                scene.add(straw);
+                straws.push(straw);
+            });
+            
+            remainingStraws = 20 - straws.length;
+            updateCountDisplay();
+            currentDesignIndex = index;
+            updateDesignsUI();
+            
+            showMessage('✅', `已加载方案 ${index + 1}`);
+        }
+        
+        // ========== 消息提示 ==========
+        function showMessage(icon, content) {
+            const msgDiv = document.getElementById('message');
+            const title = document.getElementById('message-title');
+            const text = document.getElementById('message-content');
+            
+            title.textContent = icon;
+            text.textContent = content;
+            msgDiv.classList.add('show');
+            
+            setTimeout(() => {
+                msgDiv.classList.remove('show');
+            }, 2000);
+        }
+        
+        // ========== 窗口大小调整 ==========
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // ========== 渲染循环 ==========
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // ========== 页面加载完成后初始化 ==========
+        window.addEventListener('load', () => {
+            initScene();
+            setupToolbar();
+            showMessage('🎉', '欢迎使用吸管搭建实验室！\n点击"添加吸管"开始设计');
+        });
+    </script>
+</body>
+</html>
