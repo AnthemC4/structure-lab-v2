@@ -1018,6 +1018,7 @@
                         const halfLen = STRAW_LENGTH / 2;
                         const sin45 = Math.sqrt(2) / 2;
                         const cos45 = Math.sqrt(2) / 2;
+                        // 下端球体相对于中心的位置
                         newPosition.y += halfLen * cos45;
                         newPosition.x -= halfLen * sin45;
                     }
@@ -1063,15 +1064,16 @@
                         intersection.x = Math.max(-GRID_SIZE/2 + 1, Math.min(GRID_SIZE/2 - 1, intersection.x));
                         intersection.z = Math.max(-GRID_SIZE/2 + 1, Math.min(GRID_SIZE/2 - 1, intersection.z));
                         
-                        // 根据方向设置高度（确保底部球体在地面上）
+                        // 根据方向设置高度（确保底部球体刚好接触地面，不穿透）
                         if (currentStrawDirection === 'vertical') {
-                            // 垂直吸管：中心点在 STRAW_LENGTH/2 处，底部球体在 y=0
-                            intersection.y = STRAW_LENGTH / 2;
+                            // 垂直吸管：底部球体中心在 y=JOINT_RADIUS 处，球体底部在 y=0
+                            intersection.y = JOINT_RADIUS + STRAW_LENGTH / 2;
                         } else if (currentStrawDirection === 'diagonal') {
-                            // 斜向吸管：45 度角，下端球体在地面
+                            // 斜向吸管：45 度角，下端球体接触地面
                             const halfLen = STRAW_LENGTH / 2;
                             const cos45 = Math.sqrt(2) / 2;
-                            intersection.y = halfLen * cos45;
+                            // 下端球体中心 Y = 球体半径 + 半长×cos45
+                            intersection.y = JOINT_RADIUS + halfLen * cos45;
                         } else {
                             // 水平吸管：中心点在 STRAW_RADIUS 处
                             intersection.y = STRAW_RADIUS;
