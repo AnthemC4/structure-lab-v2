@@ -729,6 +729,15 @@
         // 吸管方向
         let currentStrawDirection = 'horizontal'; // horizontal, vertical, diagonal
         
+        // 页面加载时输出全局常量（用于调试）
+        console.log(`===== 全局常量 =====`);
+        console.log(`STRAW_VISUAL_LENGTH: ${STRAW_VISUAL_LENGTH}`);
+        console.log(`STRAW_RADIUS: ${STRAW_RADIUS}`);
+        console.log(`JOINT_RADIUS: ${JOINT_RADIUS}`);
+        console.log(`STRAW_LENGTH: ${STRAW_LENGTH}`);
+        console.log(`STRAW_DIAGONAL_BODY_LENGTH: ${STRAW_DIAGONAL_BODY_LENGTH}`);
+        console.log(`预期：STRAW_LENGTH + 2×JOINT_RADIUS = ${(STRAW_LENGTH + 2*JOINT_RADIUS).toFixed(3)} (应该=2.000)`);
+        
         // 撤销历史
         const MAX_UNDO_STEPS = 10;
         let undoHistory = []; // 撤销历史栈
@@ -857,8 +866,8 @@
             // 根据方向选择吸管长度（球体中心之间的距离）
             const bodyLength = direction === 'diagonal' ? STRAW_DIAGONAL_BODY_LENGTH : STRAW_LENGTH;
             
-            // 圆柱体长度 = 球心距（圆柱体两端正好在球体中心处）
-            const cylinderLength = bodyLength;
+            // 圆柱体长度 = 球心距 - 2×球半径（圆柱体两端正好接触球体内侧）
+            const cylinderLength = bodyLength - 2 * JOINT_RADIUS;
             
             // 计算总视觉长度（用于调试）
             const visualLength = bodyLength + 2 * JOINT_RADIUS;
@@ -866,7 +875,7 @@
             // 在页面上显示调试信息
             const debugDiv = document.getElementById('debug-info');
             if (debugDiv) {
-                debugDiv.innerHTML = `吸管长度：${visualLength.toFixed(3)} (应该=2.000) | bodyLength=${bodyLength.toFixed(3)} | JOINT_RADIUS=${JOINT_RADIUS}`;
+                debugDiv.innerHTML = `吸管长度：${visualLength.toFixed(3)} (应该=2.000) | bodyLength=${bodyLength.toFixed(3)} | cylinderLength=${cylinderLength.toFixed(3)} | JOINT_RADIUS=${JOINT_RADIUS}`;
             }
             
             // 吸管主体 - 默认垂直方向（圆柱默认是 Y 轴方向）
