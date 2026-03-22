@@ -680,6 +680,11 @@
         let dragOffset = new THREE.Vector3();
         let dragTouchId = null; // 拖拽吸管的触摸 ID
         
+        // 自动吸附相关
+        const SNAP_THRESHOLD = 0.3; // 吸附阈值（单位）
+        let snapTarget = null; // 当前吸附的目标点
+        let snapHighlight = null; // 吸附高亮标记
+        
         // 吸管方向
         let currentStrawDirection = 'horizontal'; // horizontal, vertical, diagonal
         
@@ -889,6 +894,9 @@
             
             // 启用轨道控制器，允许同时旋转场景
             controls.enabled = true;
+            
+            // 创建吸附高亮标记
+            createSnapHighlight();
         }
         
         // 取消选中
@@ -911,9 +919,101 @@
             isEditMode = false;
             isDragging = false;
             dragTouchId = null;
+            snapTarget = null;
+            
+            // 隐藏吸附高亮
+            if (snapHighlight) {
+                scene.remove(snapHighlight);
+                snapHighlight = null;
+            }
             
             // 恢复轨道控制器
             controls.enabled = true;
+        }
+        
+        // 创建吸附高亮标记
+        function createSnapHighlight() {
+            if (snapHighlight) return;
+            
+            const geometry = new THREE.RingGeometry(0.25, 0.35, 16);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x2ecc71,
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+            snapHighlight = new THREE.Mesh(geometry, material);
+            snapHighlight.rotation.x = -Math.PI / 2;
+            scene.add(snapHighlight);
+        }
+        
+        // 检测并更新吸附
+        function updateSnap(position) {
+            if (!selectedStraw) return null;
+            
+            // 获取所有吸管的连接点位置
+            const jointPositions = [];
+            straws.forEach(straw => {
+                if (straw === selectedStraw) return; // 跳过当前选中的吸管
+                
+                const direction = straw.userData.direction || 'horizontal';
+                const halfLen = STRAW_LENGTH / 2;
+                
+                // 计算两个连接点的世界坐标
+                if (direction === 'horizontal') {
+                    jointPositions.push(
+                        new THREE.Vector3(straw.position.x - halfLen, straw.position.y, straw.position.z),
+                        new THREE.Vector3(straw.position.x + halfLen, straw.position.y, straw.position.z)
+                    );
+                } else if (direction === 'vertical') {
+                    jointPositions.push(
+                        new THREE.Vector3(straw.position.x, straw.position.y - halfLen, straw.position.z),
+                        new THREE.Vector3(straw.position.x, straw.position.y + halfLen, straw.position.z)
+                    );
+                } else if (direction === 'diagonal') {
+                    const sin45 = Math.sqrt(2) / 2;
+                    const cos45 = Math.sqrt(2) / 2;
+                    jointPositions.push(
+                        new THREE.Vector3(
+                            straw.position.x - halfLen * sin45,
+                            straw.position.y - halfLen * cos45,
+                            straw.position.z
+                        ),
+                        new THREE.Vector3(
+                            straw.position.x + halfLen * sin45,
+                            straw.position.y + halfLen * cos45,
+                            straw.position.z
+                        )
+                    );
+                }
+            });
+            
+            // 找到最近的连接点
+            let nearestPoint = null;
+            let nearestDist = SNAP_THRESHOLD;
+            
+            jointPositions.forEach(point => {
+                const dist = position.distanceTo(point);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestPoint = point;
+                }
+            });
+            
+            // 更新吸附状态
+            snapTarget = nearestPoint;
+            
+            // 更新高亮位置
+            if (snapHighlight) {
+                if (nearestPoint) {
+                    snapHighlight.position.copy(nearestPoint);
+                    snapHighlight.visible = true;
+                } else {
+                    snapHighlight.visible = false;
+                }
+            }
+            
+            return nearestPoint;
         }
         
         function onCanvasClick(event) {
@@ -1177,7 +1277,7 @@
             }
         }
         
-        // 触摸移动处理 - 支持双指独立操作
+        // 触摸移动处理 - 支持双指独立操作 + 自动吸附
         function onTouchMove(event) {
             if (isEditMode && selectedStraw && isDragging && dragTouchId !== null) {
                 const touchCount = event.touches.length;
@@ -1220,6 +1320,13 @@
                             dragOffset.copy(intersection);
                         }
                         
+                        // 检测并应用自动吸附
+                        const snapPoint = updateSnap(selectedStraw.position);
+                        if (snapPoint) {
+                            // 吸附到连接点
+                            selectedStraw.position.copy(snapPoint);
+                        }
+                        
                         // 限制在网格范围内
                         selectedStraw.position.x = Math.max(-GRID_SIZE/2, Math.min(GRID_SIZE/2, selectedStraw.position.x));
                         selectedStraw.position.z = Math.max(-GRID_SIZE/2, Math.min(GRID_SIZE/2, selectedStraw.position.z));
@@ -1232,7 +1339,7 @@
             }
         }
         
-        // 鼠标移动处理（桌面端）
+        // 鼠标移动处理（桌面端）- 支持自动吸附
         function onMouseMove(event) {
             if (!isEditMode || !selectedStraw || !isDragging) return;
             
@@ -1267,6 +1374,12 @@
                 selectedStraw.position.z += offset.z;
                 
                 dragOffset.copy(intersection);
+            }
+            
+            // 检测并应用自动吸附
+            const snapPoint = updateSnap(selectedStraw.position);
+            if (snapPoint) {
+                selectedStraw.position.copy(snapPoint);
             }
             
             // 限制在网格范围内
