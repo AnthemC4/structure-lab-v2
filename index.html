@@ -1569,18 +1569,19 @@
                 return;
             }
             
-            console.log('撤销前历史长度:', undoHistory.length);
+            // 保存当前相机状态
+            const cameraPosition = camera.position.clone();
+            const cameraTarget = controls.target.clone();
+            
             const lastState = undoHistory.pop();
-            console.log('撤销后历史长度:', undoHistory.length);
             
             // 清空当前场景
             straws.forEach(straw => scene.remove(straw));
             straws = [];
             
-            // 恢复上一个状态（精确恢复每个吸管的位置和旋转）
+            // 恢复上一个状态
             if (lastState && lastState.straws) {
-                lastState.straws.forEach(data => {
-                    // 创建吸管（使用保存的 direction 和 rotationY）
+                lastState.straws.forEach((data, index) => {
                     const straw = createStraw(
                         new THREE.Vector3(data.position.x, data.position.y, data.position.z),
                         data.direction || 'horizontal',
@@ -1591,9 +1592,18 @@
                     straws.push(straw);
                 });
                 
-                remainingStraws = lastState.remainingStraws || 20;
+                remainingStraws = lastState.remainingStraws;
             }
             
+            // 强制更新场景和渲染
+            scene.updateMatrixWorld(true);
+            
+            // 恢复相机状态（防止撤销后视角变化导致视觉差异）
+            camera.position.copy(cameraPosition);
+            controls.target.copy(cameraTarget);
+            controls.update();
+            
+            // 强制更新显示
             updateCountDisplay();
             updateUndoButton();
             
