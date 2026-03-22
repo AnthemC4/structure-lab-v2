@@ -1580,15 +1580,12 @@
             // 恢复上一个状态（精确恢复每个吸管的位置和旋转）
             if (lastState && lastState.straws) {
                 lastState.straws.forEach(data => {
-                    // 创建吸管（不应用旋转）
+                    // 创建吸管（使用保存的 direction 和 rotationY）
                     const straw = createStraw(
                         new THREE.Vector3(data.position.x, data.position.y, data.position.z),
                         data.direction || 'horizontal',
-                        0  // Y 轴旋转设为 0，后面统一设置
+                        data.rotation.y || 0
                     );
-                    
-                    // 精确恢复所有旋转值
-                    straw.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
                     
                     scene.add(straw);
                     straws.push(straw);
