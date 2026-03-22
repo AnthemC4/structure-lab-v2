@@ -210,6 +210,21 @@
             color: white;
         }
         
+        #undo-btn {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+            color: white;
+        }
+        
+        #undo-btn:not(:disabled) {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+        
+        #undo-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
         /* 方案切换栏 */
         #designs-bar {
             position: fixed;
@@ -647,6 +662,7 @@
         
         <!-- 底部工具栏 -->
         <div id="toolbar">
+            <button class="tool-btn" id="undo-btn" disabled>↩️ 撤销</button>
             <button class="tool-btn" id="add-straw-btn">➕ 添加吸管</button>
             <button class="tool-btn" id="delete-btn">🗑️ 删除模式</button>
             <button class="tool-btn" id="reset-btn">🔄 重新开始</button>
@@ -702,6 +718,10 @@
         
         // 吸管方向
         let currentStrawDirection = 'horizontal'; // horizontal, vertical, diagonal
+        
+        // 撤销历史
+        const MAX_UNDO_STEPS = 10;
+        let undoHistory = []; // 撤销历史栈
         
         // ========== 初始化 Three.js 场景 ==========
         function initScene() {
@@ -1087,6 +1107,9 @@
                     const clickedBody = intersects[0].object;
                     const clickedStraw = straws.find(s => s.children.includes(clickedBody));
                     if (clickedStraw) {
+                        // 保存操作前状态
+                        saveToUndoHistory();
+                        
                         removeStraw(clickedStraw);
                         showMessage('🗑️', '已删除吸管');
                     }
@@ -1160,6 +1183,9 @@
                     newPosition.x = Math.max(-GRID_SIZE/2 + 1, Math.min(GRID_SIZE/2 - 1, newPosition.x));
                     newPosition.z = Math.max(-GRID_SIZE/2 + 1, Math.min(GRID_SIZE/2 - 1, newPosition.z));
                     newPosition.y = Math.max(STRAW_RADIUS, Math.min(GRID_SIZE, newPosition.y));
+                    
+                    // 保存操作前状态
+                    saveToUndoHistory();
                     
                     const straw = createStraw(newPosition, currentStrawDirection);
                     scene.add(straw);
@@ -1456,6 +1482,71 @@
             }
         }
         
+        // 保存当前状态到撤销历史
+        function saveToUndoHistory() {
+            const state = {
+                straws: straws.map(straw => ({
+                    position: { x: straw.position.x, y: straw.position.y, z: straw.position.z },
+                    rotation: { x: straw.rotation.x, y: straw.rotation.y, z: straw.rotation.z },
+                    direction: straw.userData.direction || 'horizontal'
+                })),
+                remainingStraws: remainingStraws
+            };
+            
+            undoHistory.push(state);
+            
+            // 限制历史记录数量
+            if (undoHistory.length > MAX_UNDO_STEPS) {
+                undoHistory.shift();
+            }
+            
+            updateUndoButton();
+        }
+        
+        // 撤销操作
+        function undo() {
+            if (undoHistory.length === 0) return;
+            
+            const lastState = undoHistory.pop();
+            
+            // 清空当前场景
+            straws.forEach(straw => scene.remove(straw));
+            straws = [];
+            
+            // 恢复上一个状态
+            lastState.straws.forEach(data => {
+                const straw = createStraw(
+                    new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                    data.direction || 'horizontal',
+                    data.rotation.y
+                );
+                straw.rotation.x = data.rotation.x;
+                straw.rotation.z = data.rotation.z;
+                scene.add(straw);
+                straws.push(straw);
+            });
+            
+            remainingStraws = lastState.remainingStraws;
+            updateCountDisplay();
+            updateUndoButton();
+            
+            showMessage('↩️', '已撤销上一步操作');
+        }
+        
+        // 更新撤销按钮状态
+        function updateUndoButton() {
+            const undoBtn = document.getElementById('undo-btn');
+            if (undoBtn) {
+                undoBtn.disabled = (undoHistory.length === 0);
+            }
+        }
+        
+        // 清空撤销历史
+        function clearUndoHistory() {
+            undoHistory = [];
+            updateUndoButton();
+        }
+        
         function getDirectionName(dir) {
             if (dir === 'horizontal') return '水平';
             if (dir === 'vertical') return '垂直';
@@ -1515,12 +1606,22 @@
                 deselectStraw();
                 
                 if (confirm('确定要清空所有吸管重新开始吗？')) {
+                    // 保存操作前状态
+                    saveToUndoHistory();
+                    
                     straws.forEach(straw => scene.remove(straw));
                     straws = [];
                     remainingStraws = 20;
                     updateCountDisplay();
+                    clearUndoHistory(); // 重置后清空历史
                     showMessage('🔄', '已重新开始');
                 }
+            });
+            
+            // 撤销按钮
+            const undoBtn = document.getElementById('undo-btn');
+            undoBtn.addEventListener('click', () => {
+                undo();
             });
             
             // 方向选择器
@@ -1661,6 +1762,7 @@
                 }
                 currentDesignIndex = index;
                 updateDesignsUI();
+                clearUndoHistory(); // 切换方案时清空历史
                 return;
             }
             
@@ -1694,6 +1796,7 @@
             updateCountDisplay();
             currentDesignIndex = index;
             updateDesignsUI();
+            clearUndoHistory(); // 切换方案时清空历史
             
             showMessage('✅', `已加载方案 ${index + 1}`);
         }
