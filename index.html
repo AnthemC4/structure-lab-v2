@@ -665,10 +665,12 @@
         let currentDesignIndex = -1;
         let designs = [null, null, null, null, null]; // 最多 5 个方案
         
-        const STRAW_TOTAL_LENGTH = 2; // 总长度（包含两端球体）
+        const STRAW_TOTAL_LENGTH = 2; // 水平/垂直吸管总长度（包含两端球体）
+        const STRAW_DIAGONAL_LENGTH = 2 * Math.sqrt(2); // 斜向吸管总长度（45 度对角线）
         const STRAW_RADIUS = 0.15;
         const JOINT_RADIUS = STRAW_RADIUS * 1.3; // 连接点球体半径
-        const STRAW_LENGTH = STRAW_TOTAL_LENGTH - 2 * JOINT_RADIUS; // 吸管主体实际长度
+        const STRAW_LENGTH = STRAW_TOTAL_LENGTH - 2 * JOINT_RADIUS; // 水平/垂直吸管主体长度
+        const STRAW_DIAGONAL_BODY_LENGTH = STRAW_DIAGONAL_LENGTH - 2 * JOINT_RADIUS; // 斜向吸管主体长度
         const STRAW_COLOR = 0x4a90e2; // 蓝色 - 未选中
         const STRAW_SELECTED_COLOR = 0xe74c3c; // 红色 - 选中
         const GRID_SIZE = 20;
@@ -809,8 +811,11 @@
         function createStraw(position, direction = 'horizontal', rotationY = 0) {
             const group = new THREE.Group();
             
+            // 根据方向选择吸管长度
+            const bodyLength = direction === 'diagonal' ? STRAW_DIAGONAL_BODY_LENGTH : STRAW_LENGTH;
+            
             // 吸管主体 - 默认垂直方向（圆柱默认是 Y 轴方向）
-            const geometry = new THREE.CylinderGeometry(STRAW_RADIUS, STRAW_RADIUS, STRAW_LENGTH, 8);
+            const geometry = new THREE.CylinderGeometry(STRAW_RADIUS, STRAW_RADIUS, bodyLength, 8);
             const material = new THREE.MeshLambertMaterial({ 
                 color: STRAW_COLOR,
                 transparent: true,
@@ -829,25 +834,24 @@
             if (direction === 'horizontal') {
                 // 水平：绕 Z 轴旋转 90 度
                 cylinder.rotation.z = Math.PI / 2;
-                joint1.position.x = -STRAW_LENGTH / 2;
-                joint2.position.x = STRAW_LENGTH / 2;
+                joint1.position.x = -bodyLength / 2;
+                joint2.position.x = bodyLength / 2;
             } else if (direction === 'vertical') {
                 // 垂直：保持默认（圆柱默认就是垂直的）
                 cylinder.rotation.x = 0;
-                joint1.position.y = -STRAW_LENGTH / 2;
-                joint2.position.y = STRAW_LENGTH / 2;
+                joint1.position.y = -bodyLength / 2;
+                joint2.position.y = bodyLength / 2;
             } else if (direction === 'diagonal') {
-                // 斜向 45 度：绕 Z 轴旋转 45 度
+                // 斜向 45 度：绕 Z 轴旋转 45 度（长度 = 2√2 ≈ 2.83）
                 cylinder.rotation.z = Math.PI / 4;
                 // 连接点沿 45 度方向分布
-                // 圆柱默认沿 Y 轴，绕 Z 轴旋转 45 度后，方向变为 (-sin45, cos45)
-                const halfLength = STRAW_LENGTH / 2;
+                const halfLength = bodyLength / 2;
                 const sin45 = Math.sqrt(2) / 2;
                 const cos45 = Math.sqrt(2) / 2;
-                // 连接点 1：右下方（原 Y 轴负方向旋转后）
+                // 连接点 1：右下方
                 joint1.position.x = halfLength * sin45;
                 joint1.position.y = -halfLength * cos45;
-                // 连接点 2：左上方（原 Y 轴正方向旋转后）
+                // 连接点 2：左上方
                 joint2.position.x = -halfLength * sin45;
                 joint2.position.y = halfLength * cos45;
             }
@@ -971,6 +975,7 @@
                         new THREE.Vector3(straw.position.x, straw.position.y + halfLen, straw.position.z)
                     );
                 } else if (direction === 'diagonal') {
+                    const halfLen = STRAW_DIAGONAL_BODY_LENGTH / 2;
                     const sin45 = Math.sqrt(2) / 2;
                     const cos45 = Math.sqrt(2) / 2;
                     jointPositions.push(
@@ -1169,8 +1174,8 @@
                             // 垂直吸管：底部球体中心在 y=JOINT_RADIUS 处，球体底部在 y=0
                             intersection.y = JOINT_RADIUS + STRAW_LENGTH / 2;
                         } else if (currentStrawDirection === 'diagonal') {
-                            // 斜向吸管：45 度角，下端球体接触地面
-                            const halfLen = STRAW_LENGTH / 2;
+                            // 斜向吸管：45 度角，下端球体接触地面（长度 = 2√2）
+                            const halfLen = STRAW_DIAGONAL_BODY_LENGTH / 2;
                             const cos45 = Math.sqrt(2) / 2;
                             // 下端球体中心 Y = 球体半径 + 半长×cos45
                             intersection.y = JOINT_RADIUS + halfLen * cos45;
