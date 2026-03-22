@@ -242,6 +242,7 @@
             cursor: pointer;
             transition: all 0.3s;
             font-size: 14px;
+            border: 2px solid transparent;
         }
         
         .design-slot:hover {
@@ -251,11 +252,21 @@
         .design-slot.active {
             background: #4a90e2;
             color: white;
+            border-color: #2980b9;
+            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.4);
+            font-weight: bold;
         }
         
         .design-slot.empty {
             color: #95a5a6;
             font-style: italic;
+        }
+        
+        .design-slot.empty.active {
+            background: #bdc3c7;
+            border-color: #95a5a6;
+            color: #2c3e50;
+            font-style: normal;
         }
         
         /* 提示信息 */
@@ -1621,14 +1632,16 @@
         function updateDesignsUI() {
             const slots = document.querySelectorAll('.design-slot');
             slots.forEach((slot, index) => {
+                const isActive = (index === currentDesignIndex);
+                
                 if (designs[index]) {
                     slot.classList.remove('empty');
                     slot.textContent = `方案 ${index + 1}（${designs[index].length}根）`;
-                    slot.classList.toggle('active', index === currentDesignIndex);
+                    slot.classList.toggle('active', isActive);
                 } else {
                     slot.classList.add('empty');
                     slot.textContent = `方案 ${index + 1}（空）`;
-                    slot.classList.remove('active');
+                    slot.classList.toggle('active', isActive);
                 }
                 
                 slot.onclick = () => loadDesign(index);
