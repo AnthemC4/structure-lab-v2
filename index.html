@@ -1754,11 +1754,11 @@
             
             // 目标方案为空：不清空当前内容，只是切换当前方案索引，用户可以继续编辑
             if (!designs[index]) {
-                // 如果有未保存的内容，提示用户
+                // 如果有未保存的内容，提示用户（延长显示时间到 3 秒）
                 if (straws.length > 0) {
-                    showMessage('ℹ️', `已切换到方案 ${index + 1}（空）\n\n当前设计未保存，请记得先保存再切换其他方案`);
+                    showMessage('ℹ️', `已切换到方案 ${index + 1}（空）\n\n当前设计未保存，请记得先保存再切换其他方案`, 3000);
                 } else {
-                    showMessage('✅', `已切换到方案 ${index + 1}（空）`);
+                    showMessage('✅', `已切换到方案 ${index + 1}（空）`, 3000);
                 }
                 currentDesignIndex = index;
                 updateDesignsUI();
@@ -1802,7 +1802,7 @@
         }
         
         // ========== 消息提示 ==========
-        function showMessage(icon, content) {
+        function showMessage(icon, content, duration = 2000) {
             const msgDiv = document.getElementById('message');
             const title = document.getElementById('message-title');
             const text = document.getElementById('message-content');
@@ -1813,7 +1813,7 @@
             
             setTimeout(() => {
                 msgDiv.classList.remove('show');
-            }, 2000);
+            }, duration);
         }
         
         // ========== 窗口大小调整 ==========
