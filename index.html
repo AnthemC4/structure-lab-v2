@@ -712,8 +712,8 @@
         let dragTouchId = null; // 拖拽吸管的触摸 ID
         
         // 智能校准相关
-        const SNAP_THRESHOLD = 0.5; // 校准阈值（单位，约球体直径）
-        const SNAP_STRENGTH = 0.3; // 校准力度（0-1，越大吸附越强）
+        const SNAP_THRESHOLD = 0.4; // 校准阈值（单位，球体中心距离）
+        const SNAP_ALIGN_THRESHOLD = 0.15; // 完全对齐阈值（小于此值直接对齐）
         let snapTarget = null; // 当前校准的目标点
         let snapHighlight = null; // 校准高亮标记
         let isSnapped = false; // 当前是否处于校准状态
@@ -1393,13 +1393,17 @@
                             dragOffset.copy(intersection);
                         }
                         
-                        // 检测并应用智能校准（软性，可继续拖动）
+                        // 检测并应用智能校准
                         const snapInfo = updateSnap();
-                        if (snapInfo && isSnapped) {
-                            // 校准模式：将选中的连接点拉向目标连接点
-                            // 计算需要移动的偏移量
-                            const moveOffset = snapInfo.offset.clone().multiplyScalar(SNAP_STRENGTH);
-                            selectedStraw.position.add(moveOffset);
+                        if (snapInfo) {
+                            if (snapInfo.distance < SNAP_ALIGN_THRESHOLD) {
+                                // 距离很近时，直接对齐（球体中心完全重叠）
+                                selectedStraw.position.add(snapInfo.offset);
+                            } else if (snapInfo.distance < SNAP_THRESHOLD) {
+                                // 距离较近时，轻微拉动提示
+                                const moveOffset = snapInfo.offset.clone().multiplyScalar(0.3);
+                                selectedStraw.position.add(moveOffset);
+                            }
                         }
                         
                         // 限制在网格范围内
@@ -1566,7 +1570,16 @@
         function updateUndoButton() {
             const undoBtn = document.getElementById('undo-btn');
             if (undoBtn) {
-                undoBtn.disabled = (undoHistory.length === 0);
+                const hasHistory = (undoHistory.length > 0);
+                undoBtn.disabled = !hasHistory;
+                // 强制更新按钮样式
+                if (hasHistory) {
+                    undoBtn.style.pointerEvents = 'auto';
+                    undoBtn.style.opacity = '1';
+                } else {
+                    undoBtn.style.pointerEvents = 'none';
+                    undoBtn.style.opacity = '0.5';
+                }
             }
         }
         
@@ -1649,16 +1662,20 @@
             
             // 撤销按钮
             const undoBtn = document.getElementById('undo-btn');
+            
+            // 初始化撤销按钮状态
+            updateUndoButton();
+            
             if (undoBtn) {
-                undoBtn.addEventListener('click', () => {
-                    if (!undoBtn.disabled) {
+                undoBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('撤销按钮被点击，历史长度:', undoHistory.length);
+                    if (undoHistory.length > 0) {
                         undo();
                     }
                 });
             }
-            
-            // 初始化撤销按钮状态
-            updateUndoButton();
             
             // 方向选择器
             const directionSelector = document.getElementById('direction-selector');
