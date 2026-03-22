@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>结构与设计 - 吸管搭建实验室</title>
+    <title>结构与设计 - 吸管搭建实验室 v20260322-2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <style>
         * {
             margin: 0;
@@ -851,14 +854,9 @@
             // 根据方向选择吸管长度（球体中心之间的距离）
             const bodyLength = direction === 'diagonal' ? STRAW_DIAGONAL_BODY_LENGTH : STRAW_LENGTH;
             
+            // 计算总视觉长度（用于调试）
             const visualLength = bodyLength + 2 * JOINT_RADIUS;
-            console.log(`===== 创建吸管 =====`);
-            console.log(`direction: ${direction}`);
-            console.log(`bodyLength (球体中心距离): ${bodyLength}`);
-            console.log(`JOINT_RADIUS (球体半径): ${JOINT_RADIUS}`);
-            console.log(`总视觉长度 (bodyLength + 2×JOINT_RADIUS): ${visualLength}`);
-            console.log(`预期应该 = 2.0`);
-            console.log(`差异 = ${visualLength - 2}`);
+            console.log(`吸管长度检查：direction=${direction}, 总视觉长度=${visualLength.toFixed(3)}, 应该=2.000`);
             
             // 吸管主体 - 默认垂直方向（圆柱默认是 Y 轴方向）
             const geometry = new THREE.CylinderGeometry(STRAW_RADIUS, STRAW_RADIUS, bodyLength, 8);
@@ -1592,11 +1590,17 @@
             // 恢复上一个状态
             if (lastState && lastState.straws) {
                 lastState.straws.forEach((data, index) => {
+                    // 传入完整的旋转信息，避免 createStraw 内部旋转与保存状态冲突
                     const straw = createStraw(
                         new THREE.Vector3(data.position.x, data.position.y, data.position.z),
                         data.direction || 'horizontal',
                         data.rotation.y || 0
                     );
+                    
+                    // 恢复完整的旋转信息（覆盖 createStraw 内部的默认旋转）
+                    straw.rotation.x = data.rotation.x || 0;
+                    straw.rotation.y = data.rotation.y || 0;
+                    straw.rotation.z = data.rotation.z || 0;
                     
                     scene.add(straw);
                     straws.push(straw);
@@ -1607,11 +1611,17 @@
             
             // 强制更新场景和渲染
             scene.updateMatrixWorld(true);
+            renderer.render(scene, camera);
             
             // 恢复相机状态（防止撤销后视角变化导致视觉差异）
             camera.position.copy(cameraPosition);
             controls.target.copy(cameraTarget);
             controls.update();
+            
+            // 清除选中状态（防止 selectedStraw 指向已删除的对象）
+            if (selectedStraw) {
+                deselectStraw();
+            }
             
             // 强制更新显示
             updateCountDisplay();
